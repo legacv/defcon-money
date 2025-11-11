@@ -20,8 +20,15 @@ init () {
         echo "[*] downloading $1..."
         dl=$(curl --silent $url | grep 'href="https://downloads.wordpress.org' | cut -d '"' -f 6)
         zipfile=$(curl --silent $url | grep 'href="https://downloads.wordpress.org' | cut -d '/' -f 5 | cut -d '"' -f 1)
-        # TODO: add an error check here to make sure $dl is a real URL
-        wget -q -P $1 $dl
+
+        # cleanup if no official WP dl
+        if wget -q -P $1 $dl 2>/dev/null ; then
+                :
+        else
+                printf "[*] no DL for $1 - cleaning up...\n"
+                rm -rf $1
+                return
+        fi
 
         # unzip a bitch
         echo "[*] unzipping $1..."
@@ -33,14 +40,17 @@ init () {
         semgrep --config=auto --quiet --json --output="$out" $1/$1
 
         # biiiiig jq command
-        echo "[*] making a report for $1..."
+        printf "[*] making a report for $1...\n"
         jq -r '["Path","Start","End","CWE","Vuln Class","Likelihood","Confidence","Impact"],(.results[] | [.path,.start.line,.end.line,(.extra.metadata.cwe | join("; ")),(.extra.metadata.vulnerability_class | join("; ")),.extra.metadata.likelihood,.extra.metadata.confidence,.extra.metadata.impact]) | @csv' $out > $1/$1-report.csv
+
+        # TODO: check csv vulns, purge if not
 }
 
 main () {
         while IFS= read -r line || [ -n "$line" ]
         do
-                init $line
+                trim=$(echo "$line" | sed 's:/*$::')
+                init $trim
         done < "$1"
         echo "[*] done!"
 }
