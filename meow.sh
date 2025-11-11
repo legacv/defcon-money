@@ -29,9 +29,12 @@ init () {
 
         # scan
         echo "[*] scanning $1 with semgrep..."
-        semgrep --config=auto --quiet --json --output="$1/$1-semgrep.json" $1/$1
+        out="$1/$1-semgrep.json"
+        semgrep --config=auto --quiet --json --output="$out" $1/$1
 
-        # TODO: json filtering, severity table w/ jq
+        # biiiiig jq command
+        echo "[*] making a report for $1..."
+        jq -r '["Path","Start","End","CWE","Vuln Class","Likelihood","Confidence","Impact"],(.results[] | [.path,.start.line,.end.line,(.extra.metadata.cwe | join("; ")),(.extra.metadata.vulnerability_class | join("; ")),.extra.metadata.likelihood,.extra.metadata.confidence,.extra.metadata.impact]) | @csv' $out > $1/$1-report.csv
 }
 
 main () {
