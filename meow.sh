@@ -12,14 +12,15 @@ init () {
         echo "[*] getting info for $1..."
         url="https://wordpress.org/plugins/$1/"
         mkdir $1
-        version=$(curl --silent $url | grep "softwareVersion" | cut -d '"' -f 4)
-        installs=$(curl --silent $url | grep "Active installations" | cut -d ">" -f 2 | cut -d "<" -f 1)
+        page=$(curl $url)
+        version=$(grep "softwareVersion" $page | cut -d '"' -f 4)
+        installs=$(grep "Active installations" $page | cut -d ">" -f 2 | cut -d "<" -f 1)
         printf "Name: $line\nVersion: $version\nInstalls: $installs\n" > $1/README.txt
 
         # download ZIP
         echo "[*] downloading $1..."
-        dl=$(curl --silent $url | grep 'href="https://downloads.wordpress.org' | cut -d '"' -f 6)
-        zipfile=$(curl --silent $url | grep 'href="https://downloads.wordpress.org' | cut -d '/' -f 5 | cut -d '"' -f 1)
+        dl=$(grep 'href="https://downloads.wordpress.org' $page | cut -d '"' -f 6)
+        zipfile=$(grep 'href="https://downloads.wordpress.org' $page | cut -d '/' -f 5 | cut -d '"' -f 1)
 
         # cleanup if no official WP dl
         if wget -q -P $1 $dl 2>/dev/null ; then
@@ -43,7 +44,17 @@ init () {
         printf "[*] making a report for $1...\n"
         jq -r '["Path","Start","End","CWE","Vuln Class","Likelihood","Confidence","Impact"],(.results[] | [.path,.start.line,.end.line,(.extra.metadata.cwe | join("; ")),(.extra.metadata.vulnerability_class | join("; ")),.extra.metadata.likelihood,.extra.metadata.confidence,.extra.metadata.impact]) | @csv' $out > $1/$1-report.csv
 
-        # TODO: check csv vulns, purge if not
+        # check if vulns
+        if test "$(wc -l < $1/$1-report.csv )" -gt 1 ; then
+                :
+        else
+                printf "[*] no vulns for $1 - cleaning up...\n"
+                rm -rf $1
+                return
+        fi
+
+        # TODO: put high+medium vulns in README
+        # TODO: make overview report w/ directories w/ 1+ high vulns
 }
 
 main () {
