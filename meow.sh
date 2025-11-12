@@ -12,17 +12,19 @@ init () {
         echo "[*] getting info for $1..."
         url="https://wordpress.org/plugins/$1/"
         mkdir $1
-        page=$(curl $url)
-        version=$(grep "softwareVersion" $page | cut -d '"' -f 4)
-        installs=$(grep "Active installations" $page | cut -d ">" -f 2 | cut -d "<" -f 1)
-        printf "Name: $line\nVersion: $version\nInstalls: $installs\n" > $1/README.txt
+        readme="$1/README.txt"
+        page=$(curl --silent $url)
+        version=$(echo $page | grep "softwareVersion" | cut -d '"' -f 4)
+        installs=$(echo $page | grep "Active installations" | cut -d ">" -f 2 | cut -d "<" -f 1)
+        printf "Name: $line\nVersion: $version\nInstalls: $installs\nHigh/Med from semgrep:\n" > $readme
 
         # download ZIP
         echo "[*] downloading $1..."
-        dl=$(grep 'href="https://downloads.wordpress.org' $page | cut -d '"' -f 6)
-        zipfile=$(grep 'href="https://downloads.wordpress.org' $page | cut -d '/' -f 5 | cut -d '"' -f 1)
+        dl=$(echo $page | grep 'href="https://downloads.wordpress.org' | cut -d '"' -f 6)
+        zipfile=$(echo $page | grep 'href="https://downloads.wordpress.org' | cut -d '/' -f 5 | cut -d '"' -f 1)
 
         # cleanup if no official WP dl
+        # TODO: put this somewhere more useful -- speed is abysmal rn b/c checks are after dl cut
         if wget -q -P $1 $dl 2>/dev/null ; then
                 :
         else
@@ -42,19 +44,26 @@ init () {
 
         # biiiiig jq command
         printf "[*] making a report for $1...\n"
-        jq -r '["Path","Start","End","CWE","Vuln Class","Likelihood","Confidence","Impact"],(.results[] | [.path,.start.line,.end.line,(.extra.metadata.cwe | join("; ")),(.extra.metadata.vulnerability_class | join("; ")),.extra.metadata.likelihood,.extra.metadata.confidence,.extra.metadata.impact]) | @csv' $out > $1/$1-report.csv
+        report="$1/$1-report.csv"
+        jq -r '["Path","Start","End","CWE","Vuln Class","Likelihood","Confidence","Impact"],(.results[] | [.path,.start.line,.end.line,(.extra.metadata.cwe | join("; ")),(.extra.metadata.vulnerability_class | join("; ")),.extra.metadata.likelihood,.extra.metadata.confidence,.extra.metadata.impact]) | @csv' $out > $report
 
         # check if vulns
-        if test "$(wc -l < $1/$1-report.csv )" -gt 1 ; then
-                :
+        if test "$(wc -l < $report )" -gt 1 ; then
+                # loop through each line in report
+                while IFS= read -r line || [ -n "$line" ]
+                do
+                        # check if impact is high or med, then add to readme
+                        if [[ $(echo $line | cut -d "," -f 8 ) == *"HIGH"* || $(echo $line | cut -d "," -f 8) == *"MEDIUM"* ]]; then
+                                echo "$line" >> $readme
+                        fi
+                done < "$report"
         else
                 printf "[*] no vulns for $1 - cleaning up...\n"
                 rm -rf $1
                 return
         fi
 
-        # TODO: put high+medium vulns in README
-        # TODO: make overview report w/ directories w/ 1+ high vulns
+        # TODO: make overview report w/ directories w/ 100+ installs + 1+ high vulns
 }
 
 main () {
