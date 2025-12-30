@@ -13,16 +13,15 @@ init () {
         url="https://wordpress.org/plugins/$1/"
         mkdir $1
         readme="$1/README.txt"
-        page=$(curl --silent $url)
-        version=$(echo $page | grep "softwareVersion" | cut -d '"' -f 4)
-        installs=$(echo $page | grep "Active installations" | cut -d ">" -f 2 | cut -d "<" -f 1)
+        page="$(curl --silent $url)"
+        version=$(echo "$page" | grep "softwareVersion" | cut -d '"' -f 4)
+        installs=$(echo "$page" | grep "Active installations" | cut -d ">" -f 2 | cut -d "<" -f 1)
         printf "Name: $line\nVersion: $version\nInstalls: $installs\nHigh/Med from semgrep:\n" > $readme
 
         # download ZIP
         echo "[*] downloading $1..."
-        dl=$(echo $page | grep 'href="https://downloads.wordpress.org' | cut -d '"' -f 6)
-        zipfile=$(echo $page | grep 'href="https://downloads.wordpress.org' | cut -d '/' -f 5 | cut -d '"' -f 1)
-
+        dl=$(echo "$page" | grep 'href="https://downloads.wordpress.org' | cut -d '"' -f 6)
+        zipfile=$(echo "$page" | grep 'href="https://downloads.wordpress.org' | cut -d '/' -f 5 | cut -d '"' -f 1)
         # cleanup if no official WP dl
         # TODO: put this somewhere more useful -- speed is abysmal rn b/c checks are after dl cut
         if wget -q -P $1 $dl 2>/dev/null ; then
